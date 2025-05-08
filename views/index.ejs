@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>PDF Coordinate Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        canvas {
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+        }
+
+        #coords {
+            margin-top: 10px;
+        }
+
+        .Container-pdf {
+            display: flex;
+            flex-direction: column;
+            max-height: 600px;
+            max-width: 600px;
+            overflow: auto;
+        }
+
+        .center {
+            display: flex;
+            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        form {
+            place-self: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="toast" style="
+        display: none;
+        position: fixed;
+         
+        
+        background-color: #333;
+        color: #fff;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        opacity: 0.9;
+        z-index: 999;
+      "></div>
+
+    <div class="center">
+        <h1>Upload PDF</h1>
+        <input type="file" id="pdfInput" accept="application/pdf" />
+        <div id="coords">X: -, Y: -</div>
+        <div class="Container-pdf" id="pdfContainer"></div>
+    </div>
+
+    <script>
+        const input = document.getElementById("pdfInput");
+        const coords = document.getElementById("coords");
+        const container = document.getElementById("pdfContainer");
+
+        function showToast(message, x, y) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            toast.style.left = `${x + 10}px`; // dịch sang phải 10px
+            toast.style.top = `${y + 10}px`;  // dịch xuống 10px
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 5000);
+        }
+
+        input.addEventListener("change", async function (event) {
+            const file = event.target.files[0];
+            if (!file || file.type !== "application/pdf") {
+                alert("Vui lòng chọn file PDF hợp lệ.");
+                return;
+            }
+
+            container.innerHTML = ""; // Xóa canvas cũ nếu có
+            coords.textContent = "X: -, Y: -";
+
+            const reader = new FileReader();
+
+            reader.onload = async function (e) {
+                const typedArray = new Uint8Array(e.target.result);
+                const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.0 });
+
+                    const canvas = document.createElement("canvas");
+                    const context = canvas.getContext("2d");
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+
+                    await page.render({ canvasContext: context, viewport }).promise;
+
+                    canvas.addEventListener("mousemove", function (event) {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = event.clientX - rect.left;
+                        const y = event.clientY - rect.top;
+                        coords.textContent = `Trang ${i} - X: ${x.toFixed(
+                            2
+                        )}, Y: ${y.toFixed(2)}`;
+                    });
+
+                    canvas.addEventListener('click', function (event) {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = event.clientX - rect.left;
+                        const y = event.clientY - rect.top;
+                        const coordString = `${x.toFixed(2)}, ${y.toFixed(2)}`;
+
+                        navigator.clipboard.writeText(coordString).then(() => {
+                            coords.textContent = `Trang ${i} - X: ${x.toFixed(2)}, Y: ${y.toFixed(2)} (Đã copy!)`;
+                            showToast(`Has been copy: ${coordString}`, event.clientX, event.clientY);
+                        }).catch(err => {
+                            coords.textContent = `Error when copy: ${err}`;
+                            showToast(`Error when copy: ${err}`, event.clientX, event.clientY);
+                        });
+                    });
+                    container.appendChild(canvas);
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+
+</html>
