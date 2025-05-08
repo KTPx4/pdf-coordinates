@@ -22,6 +22,10 @@ app.get('/', (req, res) => {
   res.render('index', { pdfPath: null });
 });
 
+app.get('/pdf-coordinates', (req, res) => {
+    res.render('index', { pdfPath: null });
+});
+
 app.post('/upload', upload.single('pdf'), (req, res) => {
   res.render('index', { pdfPath: `/uploads/${req.file.filename}` });
 });
